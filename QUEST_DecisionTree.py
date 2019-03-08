@@ -5,6 +5,7 @@ from sklearn import preprocessing
 from sklearn import metrics
 from sklearn.decomposition import PCA
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.impute import SimpleImputer
 from sklearn.tree import export_graphviz
 import numpy as np
 import seaborn as sns
@@ -16,11 +17,24 @@ import matplotlib.pyplot as plt
 # We will first run some data analysis and data visualization and then implement the model and analyze its results.
 
 df_train = pd.read_csv('train.csv')
-df_train.dropna(inplace=True)
+# df_train.dropna(inplace=True)
 
 df_test = pd.read_csv('test.csv')
-df_test.dropna(inplace=True)
+# df_test.dropna(inplace=True)
 
+NumImp = SimpleImputer(missing_values=np.nan, strategy='median')
+NumCol = ['Age', 'Fare']
+
+CatImp = SimpleImputer(strategy='constant')
+CatCol = ['Embarked', 'Sex', 'Pclass']
+
+for col in NumCol:
+    df_train[col] = NumImp.fit_transform(df_train[col].values.reshape(-1,1))
+    df_test[col] = NumImp.transform(df_test[col].values.reshape(-1, 1))
+
+for col in CatCol:
+    df_train[col] = CatImp.fit_transform(df_train[col].values.reshape(-1,1))
+    df_test[col] = CatImp.transform(df_test[col].values.reshape(-1,1))
 
 ### Print columns types in preparation of our future steps
 
@@ -53,8 +67,8 @@ categorical_feats = ['Embarked', 'Sex']
 for feat in categorical_feats:
     le = preprocessing.LabelEncoder()
     le.fit(df_train[feat].unique())
-    df_train[feat]= le.transform(df_train[feat])
-    df_test[feat]= le.transform(df_test[feat])
+    df_train[feat] = le.transform(df_train[feat])
+    df_test[feat] = le.transform(df_test[feat])
 
 ### Implementing a PCA decomposition
 
@@ -104,7 +118,8 @@ random_grid = {'n_estimators': n_estimators,
 
 features = ['Fare', 'Embarked', 'Sex', 'Age']
 model_RF = RandomForestClassifier()
-model_RF_random = RandomizedSearchCV(estimator = model_RF, param_distributions = random_grid, n_iter = 100, cv = 3, verbose=2, random_state=42, n_jobs = -1)
+model_RF_random = RandomizedSearchCV(estimator=model_RF, param_distributions=random_grid, n_iter=100, cv=3, verbose=2,
+                                     random_state=42, n_jobs=-1)
 model_RF_random.fit(df_train[features], df_train['Survived'])
 y_pred_RF = model_RF_random.predict(df_train[features])
 
@@ -112,4 +127,9 @@ y_pred_RF = model_RF_random.predict(df_train[features])
 
 # Model Accuracy, how often is the classifier correct?
 print("Accuracy:", metrics.accuracy_score(df_train['Survived'], y_pred_RF))
-print(model_RF_random.best_params_)
+
+### Prediction on test set
+
+y_pred_RF_test = model_RF_random.predict(df_test[features])
+df_results = pd.DataFrame(y_pred_RF_test, index=df_test['PassengerId'], columns=['Survived'])
+df_results.to_csv('results.csv')
